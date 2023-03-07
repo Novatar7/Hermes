@@ -2,7 +2,7 @@ from django.shortcuts import render
 from django.http import request
 from django.views import View
 
-from Hermes.customer.models import MenuItem, OrderModel
+from customer.models import MenuItem, OrderModel
 
 # Create your views here.
 class Index(View):
