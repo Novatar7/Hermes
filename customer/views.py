@@ -75,9 +75,9 @@ class Order(View):
         body =('Thank you for your order! It will be delivered Soon!!\n'
         f'Your total:{price}\n'
         'We will get to you soon!')
-        
+
         send_mail(
-            'Thank You For Order!
+            'Thank You For Order!',
             body,
             'example@gmail.com',
             [email],
