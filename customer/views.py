@@ -1,56 +1,58 @@
-from django.shortcuts import render
-from django.http import request
+import json
+from django.shortcuts import render, redirect
 from django.views import View
+from django.db.models import Q
 from django.core.mail import send_mail
 from .models import MenuItem, Category, OrderModel
 
-from customer.models import MenuItem, OrderModel
 
-# Create your views here.
 class Index(View):
-    def get(self, request,*args, **kwargs):
-        return render(request, 'customer/Index.html')
+    def get(self, request, *args, **kwargs):
+        return render(request, 'customer/index.html')
+
 
 class About(View):
-    def get(self, request,*args, **kwargs):
-        return render(request, 'customer/About.html')
-    
+    def get(self, request, *args, **kwargs):
+        return render(request, 'customer/about.html')
+
+
 class Order(View):
     def get(self, request, *args, **kwargs):
-        pass
         # get every item from each category
-        appetizers = MenuItem.objects.filter(category__name__contains='Appetizer')
-        maincourse = MenuItem.objects.filter(category__name__contains='Main course')
-        sides = MenuItem.objects.filter(category__name__contains='Sides')
-        drinks = MenuItem.objects.filter(category__name__contains='Drinks')
+        appetizers = MenuItem.objects.filter(
+            category__name__contains='Appetizer')
+        entres = MenuItem.objects.filter(category__name__contains='Entre')
+        desserts = MenuItem.objects.filter(category__name__contains='Dessert')
+        drinks = MenuItem.objects.filter(category__name__contains='Drink')
 
         # pass into context
         context = {
             'appetizers': appetizers,
-            'maincourse' : maincourse,
-            'sides' : sides,
-            'drinks' : drinks,
+            'entres': entres,
+            'desserts': desserts,
+            'drinks': drinks,
         }
+
         # render the template
-        return render(request,'customer/order.html', context)
-    
-    def post (self, request, *args, **kwargs):
+        return render(request, 'customer/order.html', context)
+
+    def post(self, request, *args, **kwargs):
         name = request.POST.get('name')
         email = request.POST.get('email')
         address = request.POST.get('address')
 
-        order_items={
+        order_items = {
             'items': []
         }
 
         items = request.POST.getlist('items[]')
 
         for item in items:
-            menu_item = MenuItem.objects.get(pk=int(item)) 
-            item_data ={
-                'id' : menu_item.pk,
-                'name' :menu_item.name,
-                'price' :menu_item.price
+            menu_item = MenuItem.objects.get(pk__contains=int(item))
+            item_data = {
+                'id': menu_item.pk,
+                'name': menu_item.name,
+                'price': menu_item.price
             }
 
             order_items['items'].append(item_data)
@@ -66,28 +68,82 @@ class Order(View):
             price=price,
             name=name,
             email=email,
-            address=address
-            )
-
+            address=address,
+        )
         order.items.add(*item_ids)
 
-        # After everything is done, send confirmation email to customer 
-        body =('Thank you for your order! It will be delivered Soon!!\n'
-        f'Your total:{price}\n'
-        'We will get to you soon!')
+        # After everything is done, send confirmation email to the user
+        body = ('Thank you for your order! Your food is being made and will be delivered soon!\n'
+                f'Your total: {price}\n'
+                'Thank you again for your order!')
 
         send_mail(
-            'Thank You For Order!',
+            'Thank You For Your Order!',
             body,
-            'example@gmail.com',
+            'example@example.com',
             [email],
             fail_silently=False
         )
 
-        context ={
-                'items' : order_items['items'],
-                'price' : price
-
+        context = {
+            'items': order_items['items'],
+            'price': price
         }
-        return render(request,'customer/order_confirmation.html')
-        
+
+        return redirect('order-confirmation', pk=order.pk)
+
+
+class OrderConfirmation(View):
+    def get(self, request, pk, *args, **kwargs):
+        order = OrderModel.objects.get(pk=pk)
+
+        context = {
+            'pk': order.pk,
+            'items': order.items,
+            'price': order.price,
+        }
+
+        return render(request, 'customer/order_confirmation.html', context)
+
+    def post(self, request, pk, *args, **kwargs):
+        data = json.loads(request.body)
+
+        if data['isPaid']:
+            order = OrderModel.objects.get(pk=pk)
+            order.is_paid = True
+            order.save()
+
+        return redirect('payment-confirmation')
+
+
+class OrderPayConfirmation(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'customer/order_pay_confirmation.html')
+
+
+class Menu(View):
+    def get(self, request, *args, **kwargs):
+        menu_items = MenuItem.objects.all()
+
+        context = {
+            'menu_items': menu_items
+        }
+
+        return render(request, 'customer/menu.html', context)
+
+
+class MenuSearch(View):
+    def get(self, request, *args, **kwargs):
+        query = self.request.GET.get("q")
+
+        menu_items = MenuItem.objects.filter(
+            Q(name__icontains=query) |
+            Q(price__icontains=query) |
+            Q(description__icontains=query)
+        )
+
+        context = {
+            'menu_items': menu_items
+        }
+
+        return render(request, 'customer/menu.html', context)
